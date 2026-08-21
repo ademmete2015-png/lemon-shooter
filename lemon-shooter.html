@@ -1,0 +1,1676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Lemon Shooter</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #05010f;
+    touch-action: none;
+    font-family: 'Courier New', monospace;
+  }
+  #gameCanvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(ellipse at center, #0d0221 0%, #030014 100%);
+  }
+  #hud {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    padding: 14px 18px;
+    color: #fff;
+    font-size: 16px;
+    font-weight: bold;
+    text-shadow: 0 0 8px rgba(255,255,255,0.5);
+    pointer-events: none;
+    z-index: 10;
+  }
+  #hud .score { color: #fde047; }
+  #hud .lives { color: #f97316; }
+  #hud .weapon { color: #7dd3fc; }
+
+  .corner-icon {
+    position: fixed;
+    top: 12px;
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.08);
+    border: 2px solid rgba(255,255,255,0.25);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    cursor: pointer;
+    z-index: 15;
+    backdrop-filter: blur(4px);
+  }
+  #settingsIcon { left: 12px; }
+  #shopIcon { right: 108px; }
+  #freezeIcon { right: 60px; }
+  #pauseIcon { right: 12px; }
+  #freezeIcon.active-freeze { background: rgba(56,189,248,0.35); border-color: #38bdf8; }
+  #gameCanvas.halted { cursor: not-allowed; }
+
+  #overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(3, 0, 20, 0.9);
+    color: #fff;
+    text-align: center;
+    z-index: 20;
+    padding: 20px;
+  }
+  #overlay h1 {
+    font-size: 40px;
+    color: #fde047;
+    text-shadow: 0 0 20px #fde047aa;
+    margin-bottom: 8px;
+    letter-spacing: 2px;
+  }
+  #overlay .lemon-emoji { font-size: 56px; margin-bottom: 8px; }
+  #overlay p { font-size: 14px; color: #ccc; margin: 6px 0; max-width: 340px; line-height: 1.5; }
+  #overlay .finalScore { font-size: 20px; color: #fde047; margin: 12px 0; font-weight: bold; }
+  .bigBtn {
+    margin-top: 14px;
+    padding: 14px 34px;
+    font-size: 18px;
+    font-weight: bold;
+    background: linear-gradient(180deg, #fde047, #f59e0b);
+    border: none;
+    border-radius: 30px;
+    color: #1a0a00;
+    box-shadow: 0 6px 0 #b45309, 0 8px 16px rgba(0,0,0,0.4);
+    font-family: inherit;
+    cursor: pointer;
+    letter-spacing: 1px;
+  }
+  .bigBtn:active { transform: translateY(4px); box-shadow: 0 2px 0 #b45309; }
+  .smallBtn {
+    margin-top: 10px;
+    padding: 8px 20px;
+    font-size: 13px;
+    font-weight: bold;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 20px;
+    color: #fff;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .hidden { display: none !important; }
+
+  /* Panels: settings / shop / pause */
+  .panel {
+    position: fixed;
+    inset: 0;
+    background: rgba(3,0,20,0.94);
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px;
+    overflow-y: auto;
+    color: #fff;
+  }
+  .panel h2 { color: #fde047; font-size: 26px; margin-bottom: 14px; letter-spacing: 1px; }
+  .panel .closeBtn {
+    position: absolute; top: 14px; right: 14px;
+    width: 36px; height: 36px; border-radius: 50%;
+    background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.3);
+    color: #fff; font-size: 18px; cursor: pointer;
+  }
+  .settingRow {
+    width: 100%; max-width: 360px;
+    display: flex; flex-direction: column;
+    margin: 10px 0;
+    font-size: 14px;
+  }
+  .settingRow label { margin-bottom: 4px; color: #cbd5e1; }
+  .settingRow input[type="range"] { width: 100%; }
+  .toggleRow {
+    width: 100%; max-width: 360px;
+    display: flex; justify-content: space-between; align-items: center;
+    margin: 10px 0; font-size: 14px;
+  }
+  .toggle {
+    width: 46px; height: 26px; border-radius: 14px;
+    background: #444; position: relative; cursor: pointer;
+    transition: background 0.2s;
+  }
+  .toggle.on { background: #22c55e; }
+  .toggle .knob {
+    position: absolute; top: 2px; left: 2px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: #fff; transition: left 0.2s;
+  }
+  .toggle.on .knob { left: 22px; }
+
+  .tabs {
+    display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; justify-content: center;
+  }
+  .tabBtn {
+    padding: 8px 16px; border-radius: 16px;
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2);
+    color: #ccc; font-size: 13px; cursor: pointer; font-family: inherit;
+  }
+  .tabBtn.active { background: #fde047; color: #1a0a00; font-weight: bold; border-color: #fde047; }
+
+  .shopGrid {
+    display: flex; flex-direction: column; gap: 12px;
+    width: 100%; max-width: 400px;
+  }
+  .shopItem {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 12px;
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 10px;
+  }
+  .shopItem .info { text-align: left; }
+  .shopItem .name { font-weight: bold; font-size: 15px; }
+  .shopItem .desc { font-size: 12px; color: #aaa; margin-top: 2px; }
+  .shopItem .price { font-size: 12px; color: #fde047; margin-top: 4px; }
+  .shopBtn {
+    padding: 8px 14px; border-radius: 14px; border: none;
+    font-family: inherit; font-weight: bold; font-size: 12px; cursor: pointer;
+    background: #22c55e; color: #06280f; white-space: nowrap;
+  }
+  .shopBtn:disabled { background: #444; color: #888; cursor: not-allowed; }
+  .shopBtn.equipped { background: #38bdf8; color: #06202a; }
+  .shopBtn.locked { background: #333; color: #777; }
+
+  .kitGrid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    width: 100%;
+    max-width: 420px;
+  }
+  .kitCard {
+    background: rgba(255,255,255,0.06);
+    border: 2px solid rgba(255,255,255,0.15);
+    border-radius: 12px;
+    padding: 10px;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 6px;
+  }
+  .kitCard.equipped { border-color: #fde047; box-shadow: 0 0 10px #fde04766; }
+  .kitCard canvas { border-radius: 8px; background: #0d0221; }
+  .kitCard .kitName { font-size: 12px; font-weight: bold; text-align: center; }
+  .kitCard .kitPrice { font-size: 11px; color: #fde047; }
+
+  #weaponBar {
+    position: fixed;
+    bottom: 14px; left: 0; right: 0;
+    display: flex; justify-content: center; gap: 10px;
+    z-index: 12;
+  }
+  .weaponSlot {
+    width: 50px; height: 50px; border-radius: 12px;
+    background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; cursor: pointer;
+  }
+  .weaponSlot.active { border-color: #fde047; box-shadow: 0 0 10px #fde04788; }
+  .weaponSlot.locked { opacity: 0.3; }
+
+  #toast {
+    position: fixed;
+    top: 70px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.75); color: #fde047;
+    padding: 8px 18px; border-radius: 20px; font-size: 13px;
+    z-index: 40; pointer-events: none; opacity: 0; transition: opacity 0.3s;
+  }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <div class="score">SCORE: <span id="scoreVal">0</span></div>
+  <div class="weapon">🔫 <span id="weaponVal">Pistol</span></div>
+</div>
+
+<div class="corner-icon" id="settingsIcon">⚙️</div>
+<div class="corner-icon" id="shopIcon">🛒</div>
+<div class="corner-icon" id="freezeIcon">❄️</div>
+<div class="corner-icon" id="pauseIcon">⏸</div>
+<div id="toast"></div>
+
+<canvas id="gameCanvas"></canvas>
+
+<div id="weaponBar"></div>
+
+<div id="overlay">
+  <div class="lemon-emoji">🍋</div>
+  <h1>LEMON SHOOTER</h1>
+  <p id="introText">Renegade lemons (and bombs!) have invaded outer space, forever.<br>Tap/click to fire. Bombs cost you score, but you can never lose — just keep going and rack up score to unlock weapons in the shop.</p>
+  <p class="finalScore hidden" id="finalScoreText"></p>
+  <button class="bigBtn" id="startBtn">START GAME</button>
+</div>
+
+<!-- SETTINGS PANEL -->
+<div class="panel hidden" id="settingsPanel">
+  <div class="closeBtn" id="closeSettings">✕</div>
+  <h2>⚙️ Settings</h2>
+  <div class="settingRow">
+    <label>Music Volume</label>
+    <input type="range" id="musicSlider" min="0" max="100" value="60">
+  </div>
+  <div class="settingRow">
+    <label>Shooting Sound Volume</label>
+    <input type="range" id="sfxSlider" min="0" max="100" value="80">
+  </div>
+  <div class="settingRow">
+    <label>Lemon Juice Sound Volume</label>
+    <input type="range" id="juiceSlider" min="0" max="100" value="80">
+  </div>
+  <div class="toggleRow">
+    <label>Headphones Mode (stereo panning)</label>
+    <div class="toggle" id="headphonesToggle"><div class="knob"></div></div>
+  </div>
+  <button class="smallBtn" id="resetSaveBtn">Reset Save Data</button>
+</div>
+
+<!-- SHOP PANEL -->
+<div class="panel hidden" id="shopPanel">
+  <div class="closeBtn" id="closeShop">✕</div>
+  <h2>🛒 Shop</h2>
+  <div class="tabs">
+    <div class="tabBtn active" data-tab="weapons">Weapons</div>
+    <div class="tabBtn" data-tab="ships">Ships</div>
+    <div class="tabBtn" data-tab="skins">Skins</div>
+    <div class="tabBtn" data-tab="clothing">Clothing</div>
+  </div>
+  <div class="shopGrid" id="shopContent"></div>
+</div>
+
+<!-- PAUSE PANEL -->
+<div class="panel hidden" id="pausePanel">
+  <h2>⏸ Paused</h2>
+  <button class="bigBtn" id="resumeBtn">Resume</button>
+  <button class="smallBtn" id="pauseSettingsBtn">Settings</button>
+  <button class="smallBtn" id="pauseShopBtn">Shop</button>
+  <button class="smallBtn" id="quitBtn">Quit to Menu</button>
+</div>
+
+<script>
+(function() {
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const overlay = document.getElementById('overlay');
+  const startBtn = document.getElementById('startBtn');
+  const introText = document.getElementById('introText');
+  const finalScoreText = document.getElementById('finalScoreText');
+  const scoreVal = document.getElementById('scoreVal');
+  const weaponVal = document.getElementById('weaponVal');
+  const toast = document.getElementById('toast');
+  const weaponBar = document.getElementById('weaponBar');
+
+  const settingsPanel = document.getElementById('settingsPanel');
+  const shopPanel = document.getElementById('shopPanel');
+  const pausePanel = document.getElementById('pausePanel');
+
+  let W, H, DPR;
+  function resize() {
+    DPR = window.devicePixelRatio || 1;
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ---------------------------------------------------------------
+  // SAVE DATA
+  // ---------------------------------------------------------------
+  const SAVE_KEY = 'lemonshooter-save-v2';
+  let saveDirty = false;
+
+  let state = {
+    score: 0,
+    bestScore: 0,
+    weaponsOwned: { pistol: true, assault: false, sniper: false, rocket: false },
+    currentWeapon: 'pistol',
+    settings: { music: 60, sfx: 80, juice: 80, headphones: false },
+    shipsOwned: 0,
+    shipWeapons: [],
+    hideoutBases: 0,
+    lemonSkinOwned: false,
+    lemonSkinEquipped: false,
+    skinsOwned: { lemon: true },
+    currentSkin: 'lemon',
+    lemonOutfit: 'none',
+    outfitsOwned: { none: true, default: true },
+    bossDefeated: false
+  };
+
+  async function loadSave() {
+    try {
+      const res = await window.storage.get(SAVE_KEY, false);
+      if (res && res.value) {
+        const loaded = JSON.parse(res.value);
+        state = Object.assign(state, loaded);
+      }
+    } catch (e) {
+      // no save yet, that's fine
+    }
+    applySettingsToUI();
+    refreshWeaponUnlockToasts(true);
+  }
+
+  function markDirty() { saveDirty = true; }
+
+  async function flushSave() {
+    if (!saveDirty) return;
+    saveDirty = false;
+    try {
+      await window.storage.set(SAVE_KEY, JSON.stringify(state), false);
+    } catch (e) {
+      console.error('save failed', e);
+    }
+  }
+  setInterval(flushSave, 2500);
+  window.addEventListener('beforeunload', flushSave);
+
+  // ---------------------------------------------------------------
+  // AUDIO (synthesized, no external files)
+  // ---------------------------------------------------------------
+  let actx = null;
+  let musicGain, sfxGain, juiceGain, panner;
+  let musicTimer = null;
+
+  function initAudio() {
+    if (actx) return;
+    actx = new (window.AudioContext || window.webkitAudioContext)();
+    musicGain = actx.createGain();
+    sfxGain = actx.createGain();
+    juiceGain = actx.createGain();
+    panner = actx.createStereoPanner();
+    musicGain.gain.value = state.settings.music / 100 * 0.25;
+    sfxGain.gain.value = state.settings.sfx / 100;
+    juiceGain.gain.value = state.settings.juice / 100;
+    musicGain.connect(actx.destination);
+    sfxGain.connect(panner);
+    juiceGain.connect(panner);
+    panner.connect(actx.destination);
+  }
+
+  function tone(freq, dur, type, gainNode, startGain, endGain, panVal) {
+    if (!actx) return;
+    const osc = actx.createOscillator();
+    const g = actx.createGain();
+    osc.type = type || 'square';
+    osc.frequency.value = freq;
+    g.gain.setValueAtTime(startGain, actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(Math.max(endGain, 0.0001), actx.currentTime + dur);
+    osc.connect(g);
+    g.connect(gainNode);
+    if (panVal !== undefined && state.settings.headphones) {
+      panner.pan.setValueAtTime(panVal, actx.currentTime);
+    }
+    osc.start();
+    osc.stop(actx.currentTime + dur);
+  }
+
+  function playShoot(weapon, panVal) {
+    if (!actx) return;
+    if (weapon === 'assault') tone(520, 0.08, 'square', sfxGain, 0.5, 0.01, panVal);
+    else if (weapon === 'sniper') tone(180, 0.25, 'sawtooth', sfxGain, 0.6, 0.01, panVal);
+    else if (weapon === 'rocket') tone(90, 0.3, 'sawtooth', sfxGain, 0.7, 0.01, panVal);
+    else tone(700, 0.09, 'square', sfxGain, 0.4, 0.01, panVal);
+  }
+
+  function playJuice(panVal) {
+    if (!actx) return;
+    tone(300 + Math.random() * 150, 0.18, 'sine', juiceGain, 0.5, 0.01, panVal);
+  }
+
+  function playBombSound(panVal) {
+    if (!actx) return;
+    tone(60, 0.4, 'sawtooth', sfxGain, 0.6, 0.01, panVal);
+  }
+
+  function playBossHit() {
+    if (!actx) return;
+    tone(120, 1.2, 'sawtooth', sfxGain, 0.8, 0.01);
+    tone(240, 1.0, 'square', sfxGain, 0.5, 0.01);
+  }
+
+  function startMusic() {
+    if (!actx) return;
+    if (musicTimer) return;
+    const notes = [110, 130.8, 146.8, 110, 98, 110, 130.8, 146.8];
+    let i = 0;
+    musicTimer = setInterval(() => {
+      const f = notes[i % notes.length];
+      tone(f, 0.5, 'triangle', musicGain, 0.3, 0.001);
+      i++;
+    }, 420);
+  }
+  function stopMusic() {
+    if (musicTimer) { clearInterval(musicTimer); musicTimer = null; }
+  }
+
+  // ---------------------------------------------------------------
+  // WEAPON DEFINITIONS
+  // ---------------------------------------------------------------
+  const HAZARDS = {
+    bomb:    { name: 'Bomb',    penalty: 1,  unlockScore: 0,     color: '#1f2937', accent: '#ef4444' },
+    grenade: { name: 'Grenade', penalty: 3,  unlockScore: 500,   color: '#166534', accent: '#a3e635' },
+    missile: { name: 'Missile', penalty: 10, unlockScore: 10000, color: '#7f1d1d', accent: '#fb923c' }
+  };
+
+  const WEAPONS = {
+    pistol:  { name: 'Pistol',         icon: '🔫', unlockScore: 0,     price: 0,     cooldown: 180, bulletSpeed: 9,  scoreMult: 1, oneShot: false, splash: 0 },
+    assault: { name: 'Assault Rifle',  icon: '🔥', unlockScore: 500,   price: 500,   cooldown: 90,  bulletSpeed: 11, scoreMult: 2, oneShot: false, splash: 0 },
+    sniper:  { name: 'Sniper',         icon: '🎯', unlockScore: 1000,  price: 1000,  cooldown: 420, bulletSpeed: 27, scoreMult: 3, oneShot: true,  splash: 0 },
+    rocket:  { name: 'Rocket Launcher',icon: '🚀', unlockScore: 10000, price: 10000, cooldown: 60,  bulletSpeed: 13, scoreMult: 5, oneShot: true,  splash: 70 }
+  };
+
+  function currentWeaponDef() { return WEAPONS[state.currentWeapon]; }
+
+  // ---------------------------------------------------------------
+  // GAME STATE
+  // ---------------------------------------------------------------
+  let running = false;
+  let paused = false;
+  let frozen = false;
+  let bullets = [];
+  let lemons = [];
+  let bombs = [];
+  let particles = [];
+  let stars = [];
+  let escortShips = [];
+  let spawnTimer = 0;
+  let spawnInterval = 70;
+  let difficultyTimer = 0;
+  let shipX = 0;
+  let shipTargetX = 0;
+  let shipFlame = 0;
+  let lastShotTime = 0;
+  let bossActive = false;
+  let boss = null;
+  let fastLemonsActive = false;
+  let specialFruit = null;
+
+  function initStars() {
+    stars = [];
+    for (let i = 0; i < 90; i++) {
+      stars.push({ x: Math.random() * W, y: Math.random() * H, r: Math.random() * 1.6 + 0.3, speed: Math.random() * 0.6 + 0.15, tw: Math.random() * Math.PI * 2 });
+    }
+  }
+
+  function layoutEscorts() {
+    escortShips = [];
+    const n = state.shipsOwned;
+    for (let i = 0; i < n; i++) {
+      escortShips.push({ offset: (i % 2 === 0 ? 1 : -1) * (40 + Math.floor(i / 2) * 34), lastShot: 0, weapon: state.shipWeapons[i] || 'pistol' });
+    }
+  }
+
+  function resetRun() {
+    bullets = [];
+    lemons = [];
+    bombs = [];
+    particles = [];
+    specialFruit = null;
+    spawnTimer = 0;
+    spawnInterval = 70;
+    difficultyTimer = 0;
+    shipX = W / 2;
+    shipTargetX = W / 2;
+    fastLemonsActive = state.bestScore >= 100;
+    scoreVal.textContent = formatScore(state.score);
+    initStars();
+    layoutEscorts();
+    updateWeaponUI();
+  }
+
+  function formatScore(n) {
+    if (n >= 1e12) return (n / 1e12).toFixed(2) + 'T';
+    if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+    if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+    return Math.floor(n).toLocaleString();
+  }
+
+  function addScore(delta) {
+    state.score = Math.max(0, state.score + delta);
+    if (state.score > state.bestScore) state.bestScore = state.score;
+    scoreVal.textContent = formatScore(state.score);
+    markDirty();
+    refreshWeaponUnlockToasts();
+    checkBossTrigger();
+    checkSpeedBoost();
+    checkHazardUnlocks();
+  }
+
+  let toastedHazards = { grenade: false, missile: false };
+  function checkHazardUnlocks() {
+    if (!toastedHazards.grenade && state.bestScore >= HAZARDS.grenade.unlockScore) {
+      toastedHazards.grenade = true;
+      showToast('💥 Watch out — grenades are falling now too!');
+    }
+    if (!toastedHazards.missile && state.bestScore >= HAZARDS.missile.unlockScore) {
+      toastedHazards.missile = true;
+      showToast('🚀 Missiles incoming from now on!');
+    }
+  }
+
+  function checkSpeedBoost() {
+    if (!fastLemonsActive && state.bestScore >= 100) {
+      fastLemonsActive = true;
+      showToast('⚡ 100 score! Lemons are coming in faster now.');
+    }
+  }
+
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2200);
+  }
+
+  let toastedUnlocks = { assault: false, sniper: false, rocket: false };
+  function refreshWeaponUnlockToasts(silent) {
+    Object.keys(WEAPONS).forEach(key => {
+      const w = WEAPONS[key];
+      if (key !== 'pistol' && state.bestScore >= w.unlockScore && !toastedUnlocks[key] && !state.weaponsOwned[key]) {
+        toastedUnlocks[key] = true;
+        if (!silent) showToast(w.icon + ' ' + w.name + ' available in the shop!');
+      }
+      if (state.weaponsOwned[key]) toastedUnlocks[key] = true;
+    });
+  }
+
+  function checkBossTrigger() {
+    if (!state.bossDefeated && state.bestScore >= 1e12 && running && !bossActive) {
+      spawnBoss();
+    }
+  }
+
+  function spawnBoss() {
+    bossActive = true;
+    boss = { x: W / 2, y: -140, size: 110, hp: 1, vy: 0.6, wobble: 0 };
+    showToast('🟢 THE SECRET LIME BOSS HAS APPEARED');
+  }
+
+  // ---------------------------------------------------------------
+  // INPUT
+  // ---------------------------------------------------------------
+  function pointerToX(e) {
+    if (e.touches && e.touches.length) return e.touches[0].clientX;
+    return e.clientX;
+  }
+  function panFromX(x) { return (x / W) * 2 - 1; }
+  function gameHalted() { return paused || frozen; }
+
+  function handleMove(e) {
+    if (!running || gameHalted()) return;
+    shipTargetX = pointerToX(e);
+  }
+  function handleFire(e) {
+    if (!running || gameHalted()) return;
+    initAudio();
+    shipTargetX = pointerToX(e);
+    fireBullet();
+  }
+
+  canvas.addEventListener('mousemove', handleMove);
+  canvas.addEventListener('mousedown', handleFire);
+  canvas.addEventListener('touchstart', e => { e.preventDefault(); handleFire(e); }, { passive: false });
+  canvas.addEventListener('touchmove', e => { e.preventDefault(); handleMove(e); }, { passive: false });
+
+  let autoFireHeld = false;
+  canvas.addEventListener('mousedown', () => { if (!gameHalted()) autoFireHeld = true; });
+  canvas.addEventListener('mouseup', () => autoFireHeld = false);
+  canvas.addEventListener('touchend', () => autoFireHeld = false);
+
+  window.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      if (running) togglePause();
+    }
+    if (e.key === 'f' || e.key === 'F') {
+      if (running && !paused) toggleFreeze();
+    }
+  });
+
+  function fireBullet() {
+    const now = performance.now();
+    const wdef = currentWeaponDef();
+    if (now - lastShotTime < wdef.cooldown) return;
+    lastShotTime = now;
+    bullets.push({ x: shipX, y: H - 90, vy: -wdef.bulletSpeed, weapon: state.currentWeapon, owner: 'player' });
+    shipFlame = 8;
+    playShoot(state.currentWeapon, panFromX(shipX));
+  }
+
+  // ---------------------------------------------------------------
+  // ENTITIES
+  // ---------------------------------------------------------------
+  function spawnLemon() {
+    const size = 22 + Math.random() * 20;
+    lemons.push({
+      x: Math.random() * (W - size * 2) + size, y: -size, size,
+      speed: (1 + Math.random() * 1.5 + difficultyTimer * 0.0006) * (fastLemonsActive ? 1.4 : 1),
+      wobble: Math.random() * Math.PI * 2, wobbleSpeed: 0.02 + Math.random() * 0.03,
+      wobbleAmp: 10 + Math.random() * 20, rotation: 0, rotSpeed: (Math.random() - 0.5) * 0.08,
+      hp: size > 34 ? 2 : 1
+    });
+  }
+
+  function unlockedHazardTypes() {
+    return Object.keys(HAZARDS).filter(k => state.bestScore >= HAZARDS[k].unlockScore);
+  }
+
+  function spawnHazard() {
+    const types = unlockedHazardTypes();
+    const type = types[Math.floor(Math.random() * types.length)];
+    const size = 26;
+    bombs.push({
+      type,
+      x: Math.random() * (W - size * 2) + size, y: -size, size,
+      speed: 1.5 + Math.random() * 1.2 + difficultyTimer * 0.0006,
+      rotation: 0, rotSpeed: (Math.random() - 0.5) * 0.05
+    });
+  }
+
+  function spawnExplosion(x, y, color, count) {
+    for (let i = 0; i < (count || 14); i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = Math.random() * 4 + 1;
+      particles.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: 30 + Math.random() * 15, maxLife: 45, color, size: Math.random() * 4 + 2 });
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // UPDATE
+  // ---------------------------------------------------------------
+  function killLemon(l, idx, fromSplash) {
+    spawnExplosion(l._lx, l.y, '#7dd3fc');
+    playJuice(panFromX(l._lx));
+    lemons.splice(idx, 1);
+    const wdef = currentWeaponDef();
+    addScore(1 * wdef.scoreMult);
+  }
+
+  function trySpawnSpecialFruit() {
+    if (specialFruit) return;
+    if (Math.random() < 0.0018) {
+      const unowned = SPECIAL_FRUIT_POOL.filter(f => !state.skinsOwned[f]);
+      if (unowned.length === 0) return;
+      const type = unowned[Math.floor(Math.random() * unowned.length)];
+      const size = 32;
+      specialFruit = { type, x: Math.random() * (W - size * 2) + size, y: -size, size, speed: 1.1, wobble: Math.random() * Math.PI * 2 };
+    }
+  }
+
+  function updateSpecialFruit() {
+    if (!specialFruit) return;
+    specialFruit.y += specialFruit.speed;
+    specialFruit.wobble += 0.03;
+    for (let j = bullets.length - 1; j >= 0; j--) {
+      const b = bullets[j];
+      const dx = b.x - specialFruit.x, dy = b.y - specialFruit.y;
+      if (Math.sqrt(dx * dx + dy * dy) < specialFruit.size * 0.55) {
+        bullets.splice(j, 1);
+        const def = SKIN_DEFS[specialFruit.type];
+        spawnExplosion(specialFruit.x, specialFruit.y, def.mid, 30);
+        playJuice(panFromX(specialFruit.x));
+        state.skinsOwned[specialFruit.type] = true;
+        markDirty();
+        showToast('🎉 New skin unlocked: ' + def.label + '!');
+        addScore(50);
+        specialFruit = null;
+        return;
+      }
+    }
+    if (specialFruit && specialFruit.y - specialFruit.size > H) specialFruit = null;
+  }
+
+  function drawSpecialFruit() {
+    if (!specialFruit) return;
+    const def = SKIN_DEFS[specialFruit.type];
+    const { rx, ry } = skinRadii(specialFruit.size, def.shape);
+    ctx.save();
+    ctx.translate(specialFruit.x + Math.sin(specialFruit.wobble) * 6, specialFruit.y);
+    ctx.beginPath();
+    if (def.shape === 'apple') {
+      ctx.moveTo(0, -ry * 0.85);
+      ctx.bezierCurveTo(rx * 0.9, -ry, rx, ry * 0.4, 0, ry);
+      ctx.bezierCurveTo(-rx, ry * 0.4, -rx * 0.9, -ry, 0, -ry * 0.85);
+    } else {
+      ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    }
+    const grad = ctx.createRadialGradient(-rx * 0.3, -ry * 0.4, 2, 0, 0, Math.max(rx, ry));
+    grad.addColorStop(0, def.top); grad.addColorStop(0.6, def.mid); grad.addColorStop(1, def.bottom);
+    ctx.fillStyle = grad; ctx.fill();
+    ctx.strokeStyle = def.stroke; ctx.lineWidth = 2; ctx.stroke();
+    drawSkinTexture(ctx, specialFruit.size, def, rx, ry);
+    if (def.leaf) {
+      ctx.beginPath(); ctx.ellipse(rx * 0.1, -ry * 0.98, specialFruit.size * 0.1, specialFruit.size * 0.14, 0.3, 0, Math.PI * 2);
+      ctx.fillStyle = def.leaf; ctx.fill();
+    }
+    ctx.beginPath(); ctx.arc(0, 0, Math.max(rx, ry) * 1.15, 0, Math.PI * 2);
+    ctx.setLineDash([4, 4]); ctx.strokeStyle = 'rgba(255,255,255,0.65)'; ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  function update() {
+    shipX += (shipTargetX - shipX) * 0.18;
+    shipX = Math.max(30, Math.min(W - 30, shipX));
+    if (shipFlame > 0) shipFlame--;
+    if (autoFireHeld) fireBullet();
+
+    stars.forEach(s => { s.y += s.speed; s.tw += 0.05; if (s.y > H) { s.y = 0; s.x = Math.random() * W; } });
+
+    spawnTimer++;
+    difficultyTimer++;
+    if (!bossActive) {
+      const effectiveInterval = fastLemonsActive ? spawnInterval * 0.55 : spawnInterval;
+      if (spawnTimer > effectiveInterval) {
+        spawnTimer = 0;
+        if (Math.random() < 0.06) spawnHazard(); else spawnLemon();
+        if (spawnInterval > 28) spawnInterval -= 0.4;
+      }
+    }
+
+    bullets.forEach(b => b.y += b.vy);
+    bullets = bullets.filter(b => b.y > -30 && b.y < H + 30);
+
+    lemons.forEach(l => { l.y += l.speed; l.wobble += l.wobbleSpeed; l.rotation += l.rotSpeed; l._lx = l.x + Math.sin(l.wobble) * l.wobbleAmp; });
+    bombs.forEach(b => { b.y += b.speed; b.rotation += b.rotSpeed; });
+
+    // escort ships auto-fire
+    escortShips.forEach(es => {
+      const now = performance.now();
+      const wdef = WEAPONS[es.weapon];
+      if (now - es.lastShot > wdef.cooldown * 1.4) {
+        es.lastShot = now;
+        bullets.push({ x: shipX + es.offset, y: H - 90, vy: -wdef.bulletSpeed, weapon: es.weapon, owner: 'escort' });
+      }
+    });
+
+    // bullet vs lemon
+    for (let i = lemons.length - 1; i >= 0; i--) {
+      const l = lemons[i];
+      for (let j = bullets.length - 1; j >= 0; j--) {
+        const b = bullets[j];
+        const dx = b.x - l._lx, dy = b.y - l.y;
+        if (Math.sqrt(dx * dx + dy * dy) < l.size * 0.55) {
+          const wdef = WEAPONS[b.weapon];
+          bullets.splice(j, 1);
+          if (wdef.oneShot) {
+            if (wdef.splash > 0) {
+              // splash damage to nearby lemons
+              for (let k = lemons.length - 1; k >= 0; k--) {
+                const l2 = lemons[k];
+                const ddx = l2._lx - l._lx, ddy = l2.y - l.y;
+                if (Math.sqrt(ddx * ddx + ddy * ddy) < wdef.splash) {
+                  killLemon(l2, k, true);
+                }
+              }
+              spawnExplosion(l._lx, l.y, '#fca5a5', 24);
+            } else {
+              killLemon(l, i);
+            }
+          } else {
+            l.hp--;
+            if (l.hp <= 0) killLemon(l, i);
+            else spawnExplosion(l._lx, l.y, '#93c5fd', 6);
+          }
+          break;
+        }
+      }
+    }
+
+    // bullet vs hazard (bomb/grenade/missile)
+    for (let i = bombs.length - 1; i >= 0; i--) {
+      const hazard = bombs[i];
+      for (let j = bullets.length - 1; j >= 0; j--) {
+        const b = bullets[j];
+        const dx = b.x - hazard.x, dy = b.y - hazard.y;
+        if (Math.sqrt(dx * dx + dy * dy) < hazard.size * 0.6) {
+          bullets.splice(j, 1);
+          bombs.splice(i, 1);
+          spawnExplosion(hazard.x, hazard.y, HAZARDS[hazard.type].accent, 20);
+          playBombSound(panFromX(hazard.x));
+          addScore(-HAZARDS[hazard.type].penalty);
+          break;
+        }
+      }
+    }
+
+    // lemons reaching bottom — just despawn, no penalty
+    for (let i = lemons.length - 1; i >= 0; i--) {
+      const l = lemons[i];
+      if (l.y - l.size > H) {
+        lemons.splice(i, 1);
+      }
+    }
+    // bombs reaching bottom — costs score, but the game keeps going
+    for (let i = bombs.length - 1; i >= 0; i--) {
+      const hazard = bombs[i];
+      if (hazard.y - hazard.size > H) {
+        bombs.splice(i, 1);
+        addScore(-HAZARDS[hazard.type].penalty);
+      }
+    }
+
+    // boss logic
+    if (bossActive && boss) {
+      boss.y += boss.vy;
+      boss.wobble += 0.02;
+      if (boss.y > 140) boss.vy = 0;
+      for (let j = bullets.length - 1; j >= 0; j--) {
+        const b = bullets[j];
+        const dx = b.x - boss.x, dy = b.y - boss.y;
+        if (Math.sqrt(dx * dx + dy * dy) < boss.size * 0.5) {
+          bullets.splice(j, 1);
+          boss.hp--;
+          if (boss.hp <= 0) {
+            spawnExplosion(boss.x, boss.y, '#84cc16', 60);
+            playBossHit();
+            state.bossDefeated = true;
+            markDirty();
+            showToast('🏆 SECRET LIME BOSS DEFEATED! Legendary.');
+            bossActive = false;
+            boss = null;
+          } else {
+            spawnExplosion(boss.x, boss.y, '#a3e635', 10);
+          }
+          break;
+        }
+      }
+    }
+
+    particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += 0.05; p.life--; });
+    particles = particles.filter(p => p.life > 0);
+
+    trySpawnSpecialFruit();
+    updateSpecialFruit();
+  }
+
+  // ---------------------------------------------------------------
+  // DRAW
+  // ---------------------------------------------------------------
+  function drawShip(x, small) {
+    const y = H - 90;
+    ctx.save();
+    ctx.translate(x, y);
+    if (small) ctx.scale(0.65, 0.65);
+    if (shipFlame > 0 || Math.random() > 0.5) {
+      const flameLen = 14 + Math.random() * 10;
+      ctx.beginPath();
+      ctx.moveTo(-10, 22); ctx.lineTo(0, 22 + flameLen); ctx.lineTo(10, 22); ctx.closePath();
+      const grad = ctx.createLinearGradient(0, 22, 0, 22 + flameLen);
+      grad.addColorStop(0, '#60a5fa'); grad.addColorStop(1, 'rgba(96,165,250,0)');
+      ctx.fillStyle = grad; ctx.fill();
+    }
+    ctx.beginPath();
+    ctx.moveTo(0, -28); ctx.lineTo(20, 22); ctx.lineTo(8, 16); ctx.lineTo(0, 22); ctx.lineTo(-8, 16); ctx.lineTo(-20, 22); ctx.closePath();
+    const bodyGrad = ctx.createLinearGradient(0, -28, 0, 22);
+    bodyGrad.addColorStop(0, '#e5e7eb'); bodyGrad.addColorStop(1, '#94a3b8');
+    ctx.fillStyle = bodyGrad; ctx.fill();
+    ctx.strokeStyle = '#475569'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, -6, 6, 0, Math.PI * 2);
+    ctx.fillStyle = '#38bdf8'; ctx.fill(); ctx.strokeStyle = '#0369a1'; ctx.stroke();
+    ctx.restore();
+  }
+
+  // ---------------------------------------------------------------
+  // CLOTHING THEMES ("kits" — coordinated outfits across all 6 categories)
+  // ---------------------------------------------------------------
+  const SKIN_DEFS = {
+    lemon:       { label: 'Classic Lemon', type: 'free',    top: '#fef9c3', mid: '#fde047', bottom: '#eab308', stroke: '#a16207', leaf: '#a3e635', shape: 'oval', texture: 'none' },
+    lime:        { label: 'Lime',          type: 'shop', price: 5000, top: '#ecfccb', mid: '#84cc16', bottom: '#4d7c0f', stroke: '#3f6212', leaf: '#365314', shape: 'oval', texture: 'none' },
+    apple:       { label: 'Apple',         type: 'special', top: '#fecaca', mid: '#dc2626', bottom: '#7f1d1d', stroke: '#450a0a', leaf: '#16a34a', shape: 'apple', texture: 'shine' },
+    watermelon:  { label: 'Watermelon',    type: 'special', top: '#bbf7d0', mid: '#16a34a', bottom: '#14532d', stroke: '#052e16', leaf: null, shape: 'round', texture: 'stripes' },
+    pomegranate: { label: 'Pomegranate',   type: 'special', top: '#fecdd3', mid: '#be123c', bottom: '#4c0519', stroke: '#3f0712', leaf: null, shape: 'round', texture: 'crown' },
+    coconut:     { label: 'Coconut',       type: 'special', top: '#e7d9c3', mid: '#a97142', bottom: '#5c4326', stroke: '#3b2a17', leaf: null, shape: 'round', texture: 'hairy' },
+    hazelnut:    { label: 'Hazelnut',      type: 'special', top: '#e7c9a3', mid: '#a9713f', bottom: '#6b4423', stroke: '#3b2410', leaf: null, shape: 'round-small', texture: 'cap' },
+    walnut:      { label: 'Walnut',        type: 'special', top: '#d9c2a3', mid: '#8b6b43', bottom: '#4a3319', stroke: '#2c1d0d', leaf: null, shape: 'round-small', texture: 'wrinkled' },
+    orange:      { label: 'Orange',        type: 'special', top: '#fed7aa', mid: '#f97316', bottom: '#c2410c', stroke: '#7c2d12', leaf: '#4d7c0f', shape: 'round', texture: 'dotted' }
+  };
+  const SPECIAL_FRUIT_POOL = ['apple', 'watermelon', 'pomegranate', 'coconut', 'hazelnut', 'walnut', 'orange'];
+
+  const THEMES = {
+    none:      { name: 'None',            price: 0 },
+    default:   { name: 'Default',         price: 0,    shirt: '#f8fafc', legwear: '#3b5998' },
+    snow:      { name: 'Snow',            price: 1500, jumper: '#e0f2fe', legwear: '#f8fafc', hat: { type: 'beanie', color: '#ef4444' }, glasses: { type: 'goggles', color: '#38bdf8' } },
+    western:   { name: 'Western',         price: 2000, shirt: '#7c2d12', legwear: '#78350f', hat: { type: 'brim', color: '#d4a373' }, headwear: { type: 'bandana', color: '#dc2626' } },
+    astronaut: { name: 'Astronaut',       price: 6000, shirt: '#e5e7eb', legwear: '#cbd5e1', headwear: { type: 'helmet', color: '#f1f5f9' } },
+    scuba:     { name: 'Scuba Diving',    price: 4000, shirt: '#111827', legwear: '#111827', headwear: { type: 'mask', color: '#0ea5e9' } },
+    birthday:  { name: 'Birthday',        price: 1000, shirt: '#f472b6', legwear: '#a78bfa', hat: { type: 'cone', color: '#facc15' } },
+    halloween: { name: 'Halloween',       price: 1800, shirt: '#111827', legwear: '#ea580c', hat: { type: 'witch', color: '#4c1d95' } },
+    japanese:  { name: 'Japanese Style',  price: 3000, shirt: '#b91c1c', legwear: '#f8fafc', headwear: { type: 'headband', color: '#dc2626' } },
+    kazakh:    { name: 'Kazakh Style',    price: 3500, shirt: '#7c3aed', legwear: '#78350f', hat: { type: 'kalpak', color: '#f8fafc' } },
+    turkish:   { name: 'Turkish Style',   price: 3200, shirt: '#0f766e', legwear: '#1e293b', hat: { type: 'fez', color: '#dc2626' } },
+    russian:   { name: 'Russian Style',   price: 3200, shirt: '#b91c1c', legwear: '#1e293b', hat: { type: 'ushanka', color: '#78350f' } },
+    tudor:     { name: 'Tudor London',    price: 5000, shirt: '#7f1d1d', legwear: '#1e293b', hat: { type: 'beret', color: '#1e293b' }, headwear: { type: 'ruff', color: '#f8fafc' } },
+    eid:       { name: 'Eid',             price: 2800, shirt: '#f8fafc', legwear: '#f8fafc', headwear: { type: 'ghutra', color: '#dc2626' } },
+    military:  { name: 'Military Soldier',price: 4500, shirt: '#4d7c0f', legwear: '#3f6212', hat: { type: 'helmet-mil', color: '#4d7c0f' }, glasses: { type: 'aviator', color: '#1f2937' } },
+    hiker:     { name: 'Hiker',           price: 2200, shirt: '#b45309', legwear: '#57534e', hat: { type: 'bucket', color: '#65a30d' } },
+    egyptian:  { name: 'Egyptian Style',  price: 5000, shirt: '#f8fafc', legwear: '#f8fafc', headwear: { type: 'nemes', color: '#1d4ed8' } },
+    lebanese:  { name: 'Lebanese Style',  price: 3200, shirt: '#78350f', legwear: '#1e293b', hat: { type: 'tarboosh', color: '#dc2626' } }
+  };
+
+  function drawHatPiece(ctx, size, hat) {
+    const y = -size * 0.72;
+    ctx.fillStyle = hat.color;
+    switch (hat.type) {
+      case 'brim':
+        ctx.beginPath(); ctx.ellipse(0, y + 4, size * 0.55, size * 0.12, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(0, y - 6, size * 0.26, size * 0.2, 0, 0, Math.PI * 2); ctx.fill();
+        break;
+      case 'beanie':
+        ctx.beginPath(); ctx.arc(0, y, size * 0.3, Math.PI, 0); ctx.fill();
+        break;
+      case 'cone':
+        ctx.beginPath(); ctx.moveTo(-size * 0.24, y + 8); ctx.lineTo(size * 0.24, y + 8); ctx.lineTo(0, y - size * 0.5); ctx.closePath(); ctx.fill();
+        break;
+      case 'witch':
+        ctx.beginPath(); ctx.ellipse(0, y + 6, size * 0.38, size * 0.1, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(-size * 0.16, y); ctx.lineTo(size * 0.16, y); ctx.lineTo(0, y - size * 0.6); ctx.closePath(); ctx.fill();
+        break;
+      case 'kalpak':
+        ctx.beginPath(); ctx.ellipse(0, y, size * 0.28, size * 0.26, 0, Math.PI, Math.PI * 2); ctx.fill();
+        break;
+      case 'fez':
+        ctx.beginPath(); ctx.rect(-size * 0.18, y - size * 0.18, size * 0.36, size * 0.22); ctx.fill();
+        ctx.strokeStyle = '#111'; ctx.beginPath(); ctx.moveTo(size * 0.18, y - size * 0.14); ctx.lineTo(size * 0.3, y - size * 0.04); ctx.stroke();
+        break;
+      case 'ushanka':
+        ctx.beginPath(); ctx.ellipse(0, y, size * 0.3, size * 0.26, 0, 0, Math.PI * 2); ctx.fill();
+        break;
+      case 'beret':
+        ctx.beginPath(); ctx.ellipse(0, y, size * 0.3, size * 0.16, 0, 0, Math.PI * 2); ctx.fill();
+        break;
+      case 'bucket':
+        ctx.beginPath(); ctx.ellipse(0, y, size * 0.32, size * 0.14, 0, 0, Math.PI * 2); ctx.fill();
+        break;
+      case 'helmet-mil':
+        ctx.beginPath(); ctx.arc(0, y, size * 0.32, Math.PI, 0); ctx.fill();
+        break;
+      case 'tarboosh':
+        ctx.beginPath(); ctx.rect(-size * 0.18, y - size * 0.18, size * 0.36, size * 0.22); ctx.fill();
+        break;
+      default:
+        ctx.beginPath(); ctx.ellipse(0, y, size * 0.28, size * 0.18, 0, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  function drawHeadwearPiece(ctx, size, hw) {
+    const y = -size * 0.55;
+    ctx.fillStyle = hw.color;
+    switch (hw.type) {
+      case 'bandana':
+        ctx.beginPath(); ctx.rect(-size * 0.4, y, size * 0.8, size * 0.12); ctx.fill();
+        break;
+      case 'helmet':
+        ctx.beginPath(); ctx.arc(0, y + size * 0.05, size * 0.48, Math.PI, 0); ctx.closePath();
+        ctx.globalAlpha = 0.5; ctx.fill(); ctx.globalAlpha = 1;
+        ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2; ctx.stroke();
+        break;
+      case 'mask':
+        ctx.beginPath(); ctx.ellipse(0, y + size * 0.1, size * 0.28, size * 0.2, 0, 0, Math.PI * 2);
+        ctx.globalAlpha = 0.55; ctx.fill(); ctx.globalAlpha = 1;
+        ctx.strokeStyle = '#0369a1'; ctx.lineWidth = 2; ctx.stroke();
+        break;
+      case 'headband':
+        ctx.beginPath(); ctx.rect(-size * 0.4, y + size * 0.15, size * 0.8, size * 0.09); ctx.fill();
+        break;
+      case 'ruff':
+        ctx.beginPath(); ctx.ellipse(0, y + size * 0.4, size * 0.4, size * 0.13, 0, 0, Math.PI * 2); ctx.fill();
+        break;
+      case 'ghutra':
+        ctx.beginPath(); ctx.ellipse(0, y, size * 0.4, size * 0.32, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 1; ctx.stroke();
+        break;
+      case 'nemes':
+        ctx.beginPath();
+        ctx.moveTo(-size * 0.32, y - size * 0.1); ctx.lineTo(-size * 0.48, y + size * 0.38); ctx.lineTo(-size * 0.24, y + size * 0.32); ctx.lineTo(-size * 0.28, y - size * 0.05); ctx.closePath(); ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(size * 0.32, y - size * 0.1); ctx.lineTo(size * 0.48, y + size * 0.38); ctx.lineTo(size * 0.24, y + size * 0.32); ctx.lineTo(size * 0.28, y - size * 0.05); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(0, y, size * 0.3, size * 0.26, 0, Math.PI, Math.PI * 2); ctx.fill();
+        break;
+      default:
+        ctx.beginPath(); ctx.ellipse(0, y, size * 0.32, size * 0.14, 0, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  function drawGlassesPiece(ctx, size, g) {
+    const y = -size * 0.02;
+    ctx.fillStyle = g.color;
+    ctx.strokeStyle = g.color;
+    ctx.lineWidth = 2;
+    switch (g.type) {
+      case 'aviator':
+        ctx.globalAlpha = 0.7;
+        ctx.beginPath(); ctx.ellipse(-size * 0.17, y, size * 0.12, size * 0.09, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(size * 0.17, y, size * 0.12, size * 0.09, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+        break;
+      case 'goggles':
+        ctx.globalAlpha = 0.7;
+        ctx.beginPath(); ctx.ellipse(0, y, size * 0.3, size * 0.13, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+        break;
+      default:
+        ctx.beginPath(); ctx.arc(-size * 0.17, y, size * 0.09, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(size * 0.17, y, size * 0.09, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+
+  function drawOutfit(ctx, size, rx, ry, themeKey) {
+    const theme = THEMES[themeKey];
+    if (!theme || themeKey === 'none') return;
+    const bodyColor = theme.jumper || theme.shirt;
+    if (bodyColor) {
+      ctx.globalAlpha = 0.85;
+      ctx.beginPath(); ctx.ellipse(0, ry * 0.1, rx * 0.92, ry * 0.42, 0, 0, Math.PI * 2);
+      ctx.fillStyle = bodyColor; ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    if (theme.legwear) {
+      ctx.globalAlpha = 0.85;
+      ctx.beginPath(); ctx.ellipse(0, ry * 0.68, rx * 0.75, ry * 0.28, 0, 0, Math.PI * 2);
+      ctx.fillStyle = theme.legwear; ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    if (theme.hat) drawHatPiece(ctx, size, theme.hat);
+    if (theme.headwear) drawHeadwearPiece(ctx, size, theme.headwear);
+    if (theme.glasses) drawGlassesPiece(ctx, size, theme.glasses);
+  }
+
+  function skinRadii(size, shape) {
+    if (shape === 'round') return { rx: size * 0.58, ry: size * 0.58 };
+    if (shape === 'round-small') return { rx: size * 0.5, ry: size * 0.48 };
+    if (shape === 'apple') return { rx: size * 0.56, ry: size * 0.68 };
+    return { rx: size * 0.55, ry: size * 0.75 }; // oval (lemon/lime default)
+  }
+
+  function drawSkinTexture(ctxRef, size, skin, rx, ry) {
+    switch (skin.texture) {
+      case 'stripes': {
+        ctxRef.strokeStyle = skin.bottom;
+        ctxRef.lineWidth = size * 0.09;
+        for (let i = -2; i <= 2; i++) {
+          ctxRef.beginPath();
+          ctxRef.moveTo(i * rx * 0.32, -ry * 0.95);
+          ctxRef.quadraticCurveTo(i * rx * 0.32 + size * 0.08, 0, i * rx * 0.32, ry * 0.95);
+          ctxRef.stroke();
+        }
+        break;
+      }
+      case 'crown': {
+        ctxRef.fillStyle = skin.stroke;
+        for (let i = -2; i <= 2; i++) {
+          ctxRef.beginPath();
+          ctxRef.moveTo(i * rx * 0.22, -ry * 0.95);
+          ctxRef.lineTo(i * rx * 0.22 - rx * 0.08, -ry * 1.18);
+          ctxRef.lineTo(i * rx * 0.22 + rx * 0.08, -ry * 1.18);
+          ctxRef.closePath(); ctxRef.fill();
+        }
+        break;
+      }
+      case 'hairy': {
+        ctxRef.strokeStyle = 'rgba(60,40,20,0.5)';
+        ctxRef.lineWidth = 1.2;
+        for (let a = 0; a < Math.PI * 2; a += 0.35) {
+          const x1 = Math.cos(a) * rx * 0.95, y1 = Math.sin(a) * ry * 0.95;
+          const x2 = Math.cos(a) * rx * 1.1, y2 = Math.sin(a) * ry * 1.1;
+          ctxRef.beginPath(); ctxRef.moveTo(x1, y1); ctxRef.lineTo(x2, y2); ctxRef.stroke();
+        }
+        ctxRef.fillStyle = '#2c1a0e';
+        ctxRef.beginPath(); ctxRef.arc(-rx * 0.2, ry * 0.35, size * 0.045, 0, Math.PI * 2);
+        ctxRef.arc(rx * 0.05, ry * 0.45, size * 0.045, 0, Math.PI * 2);
+        ctxRef.arc(rx * 0.25, ry * 0.3, size * 0.045, 0, Math.PI * 2);
+        ctxRef.fill();
+        break;
+      }
+      case 'cap': {
+        ctxRef.fillStyle = '#4d3319';
+        ctxRef.beginPath();
+        ctxRef.ellipse(0, -ry * 0.55, rx * 0.68, ry * 0.35, 0, Math.PI, 0);
+        ctxRef.fill();
+        for (let i = -1; i <= 1; i++) {
+          ctxRef.beginPath();
+          ctxRef.moveTo(i * rx * 0.4, -ry * 0.55);
+          ctxRef.lineTo(i * rx * 0.5, -ry * 0.9);
+          ctxRef.strokeStyle = '#4d3319'; ctxRef.lineWidth = 1.5; ctxRef.stroke();
+        }
+        break;
+      }
+      case 'wrinkled': {
+        ctxRef.strokeStyle = 'rgba(0,0,0,0.28)';
+        ctxRef.lineWidth = 1.3;
+        ctxRef.beginPath(); ctxRef.moveTo(0, -ry * 0.85); ctxRef.lineTo(0, ry * 0.85); ctxRef.stroke();
+        for (let i = -2; i <= 2; i++) {
+          ctxRef.beginPath();
+          ctxRef.moveTo(i * rx * 0.28, -ry * 0.7);
+          ctxRef.quadraticCurveTo(i * rx * 0.28 + rx * 0.15 * Math.sign(i || 1), 0, i * rx * 0.28, ry * 0.7);
+          ctxRef.stroke();
+        }
+        break;
+      }
+      case 'dotted': {
+        ctxRef.fillStyle = 'rgba(0,0,0,0.15)';
+        for (let i = 0; i < 14; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const d = Math.random();
+          ctxRef.beginPath(); ctxRef.arc(Math.cos(a) * rx * 0.7 * d, Math.sin(a) * ry * 0.7 * d, 1, 0, Math.PI * 2); ctxRef.fill();
+        }
+        break;
+      }
+      case 'shine': {
+        ctxRef.fillStyle = 'rgba(255,255,255,0.35)';
+        ctxRef.beginPath(); ctxRef.ellipse(-rx * 0.3, -ry * 0.35, rx * 0.18, ry * 0.28, -0.4, 0, Math.PI * 2); ctxRef.fill();
+        break;
+      }
+      default: break;
+    }
+  }
+
+  function drawLemon(l) {
+    ctx.save();
+    ctx.translate(l._lx, l.y);
+    ctx.rotate(l.rotation);
+    const skin = SKIN_DEFS[state.currentSkin] || SKIN_DEFS.lemon;
+    const { rx, ry } = skinRadii(l.size, skin.shape);
+    ctx.beginPath();
+    if (skin.shape === 'apple') {
+      // slightly heart-shaped apple silhouette with a top indent
+      ctx.moveTo(0, -ry * 0.85);
+      ctx.bezierCurveTo(rx * 0.9, -ry, rx, ry * 0.4, 0, ry);
+      ctx.bezierCurveTo(-rx, ry * 0.4, -rx * 0.9, -ry, 0, -ry * 0.85);
+    } else {
+      ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    }
+    const grad = ctx.createRadialGradient(-rx * 0.3, -ry * 0.4, 2, 0, 0, Math.max(rx, ry));
+    grad.addColorStop(0, skin.top); grad.addColorStop(0.6, skin.mid); grad.addColorStop(1, skin.bottom);
+    ctx.fillStyle = grad; ctx.fill();
+    ctx.strokeStyle = skin.stroke; ctx.lineWidth = 1.5; ctx.stroke();
+    drawSkinTexture(ctx, l.size, skin, rx, ry);
+    if (skin.leaf) {
+      ctx.beginPath(); ctx.ellipse(rx * 0.1, -ry * 0.98, l.size * 0.11, l.size * 0.15, 0.3, 0, Math.PI * 2);
+      ctx.fillStyle = skin.leaf; ctx.fill();
+      ctx.strokeStyle = '#3b2a17'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0, -ry * 0.9); ctx.lineTo(0, -ry * 1.05); ctx.stroke();
+    }
+    ctx.fillStyle = skin.texture === 'hairy' ? '#f8fafc' : '#78350f';
+    ctx.beginPath(); ctx.arc(-rx * 0.32, -ry * 0.1, l.size * 0.07, 0, Math.PI * 2); ctx.arc(rx * 0.32, -ry * 0.1, l.size * 0.07, 0, Math.PI * 2); ctx.fill();
+    drawOutfit(ctx, l.size, rx, ry, state.lemonOutfit);
+    ctx.restore();
+  }
+
+  function drawBomb(b) {
+    const h = HAZARDS[b.type] || HAZARDS.bomb;
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.rotate(b.rotation);
+    if (b.type === 'missile') {
+      ctx.beginPath();
+      ctx.moveTo(0, -b.size * 0.6); ctx.lineTo(b.size * 0.28, b.size * 0.3); ctx.lineTo(-b.size * 0.28, b.size * 0.3); ctx.closePath();
+      ctx.fillStyle = h.color; ctx.fill();
+      ctx.strokeStyle = h.accent; ctx.lineWidth = 2; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-b.size * 0.28, b.size * 0.2); ctx.lineTo(-b.size * 0.5, b.size * 0.45); ctx.lineTo(-b.size * 0.15, b.size * 0.35); ctx.closePath();
+      ctx.moveTo(b.size * 0.28, b.size * 0.2); ctx.lineTo(b.size * 0.5, b.size * 0.45); ctx.lineTo(b.size * 0.15, b.size * 0.35); ctx.closePath();
+      ctx.fillStyle = h.accent; ctx.fill();
+    } else if (b.type === 'grenade') {
+      ctx.beginPath(); ctx.arc(0, 0, b.size * 0.48, 0, Math.PI * 2);
+      ctx.fillStyle = h.color; ctx.fill();
+      ctx.strokeStyle = h.accent; ctx.lineWidth = 2; ctx.stroke();
+      for (let gx = -1; gx <= 1; gx++) {
+        ctx.beginPath(); ctx.moveTo(gx * b.size * 0.4, -b.size * 0.4); ctx.lineTo(gx * b.size * 0.4, b.size * 0.4);
+        ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1.5; ctx.stroke();
+      }
+      ctx.beginPath(); ctx.moveTo(0, -b.size * 0.48); ctx.lineTo(0, -b.size * 0.68);
+      ctx.strokeStyle = h.accent; ctx.lineWidth = 2; ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, -b.size * 0.7, 3, 0, Math.PI * 2); ctx.fillStyle = h.accent; ctx.fill();
+    } else {
+      ctx.beginPath(); ctx.arc(0, 0, b.size * 0.5, 0, Math.PI * 2);
+      ctx.fillStyle = h.color; ctx.fill();
+      ctx.strokeStyle = h.accent; ctx.lineWidth = 2; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, -b.size * 0.5); ctx.lineTo(0, -b.size * 0.75);
+      ctx.strokeStyle = '#facc15'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, -b.size * 0.78, 3, 0, Math.PI * 2); ctx.fillStyle = '#facc15'; ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawBoss() {
+    if (!boss) return;
+    ctx.save();
+    ctx.translate(boss.x + Math.sin(boss.wobble) * 20, boss.y);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, boss.size * 0.55, boss.size * 0.75, 0, 0, Math.PI * 2);
+    const grad = ctx.createRadialGradient(-30, -30, 4, 0, 0, boss.size);
+    grad.addColorStop(0, '#d9f99d'); grad.addColorStop(0.6, '#65a30d'); grad.addColorStop(1, '#365314');
+    ctx.fillStyle = grad; ctx.fill();
+    ctx.strokeStyle = '#1a2e05'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.fillStyle = '#1a2e05';
+    ctx.beginPath(); ctx.arc(-25, -10, 10, 0, Math.PI * 2); ctx.arc(25, -10, 10, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    stars.forEach(s => { ctx.globalAlpha = 0.5 + Math.sin(s.tw) * 0.5; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill(); });
+    ctx.globalAlpha = 1;
+
+    bullets.forEach(b => {
+      ctx.beginPath();
+      ctx.fillStyle = b.weapon === 'rocket' ? '#fb923c' : b.weapon === 'sniper' ? '#f87171' : '#7dd3fc';
+      ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 8;
+      ctx.ellipse(b.x, b.y, 3, 10, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+    });
+
+    lemons.forEach(drawLemon);
+    bombs.forEach(drawBomb);
+    drawSpecialFruit();
+    drawBoss();
+
+    particles.forEach(p => { ctx.globalAlpha = Math.max(p.life / p.maxLife, 0); ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill(); });
+    ctx.globalAlpha = 1;
+
+    escortShips.forEach(es => drawShip(shipX + es.offset, true));
+    drawShip(shipX, false);
+  }
+
+  // ---------------------------------------------------------------
+  // LOOP / LIFECYCLE
+  // ---------------------------------------------------------------
+  let rafId;
+  function loop() {
+    if (running && !gameHalted()) { update(); draw(); }
+    else if (running && gameHalted()) { draw(); }
+    if (running) rafId = requestAnimationFrame(loop);
+  }
+
+  function endGame() {
+    running = false;
+    stopMusic();
+    cancelAnimationFrame(rafId);
+    introText.classList.add('hidden');
+    finalScoreText.classList.remove('hidden');
+    finalScoreText.textContent = 'FINAL SCORE: ' + formatScore(state.score);
+    startBtn.textContent = 'PLAY AGAIN';
+    overlay.classList.remove('hidden');
+    flushSave();
+  }
+
+  function startGame() {
+    initAudio();
+    resetRun();
+    overlay.classList.add('hidden');
+    running = true;
+    paused = false;
+    frozen = false;
+    document.getElementById('freezeIcon').classList.remove('active-freeze');
+    startMusic();
+    loop();
+  }
+  startBtn.addEventListener('click', startGame);
+
+  function togglePause() {
+    paused = !paused;
+    pausePanel.classList.toggle('hidden', !paused);
+    canvas.classList.toggle('halted', gameHalted());
+    if (gameHalted()) { stopMusic(); autoFireHeld = false; } else { startMusic(); }
+  }
+  function toggleFreeze() {
+    if (!running) return;
+    frozen = !frozen;
+    document.getElementById('freezeIcon').classList.toggle('active-freeze', frozen);
+    canvas.classList.toggle('halted', gameHalted());
+    if (frozen) { showToast('❄️ Frozen — press ❄️ or F to resume'); stopMusic(); autoFireHeld = false; }
+    else if (!gameHalted()) { startMusic(); }
+  }
+  document.getElementById('pauseIcon').addEventListener('click', () => { if (running) togglePause(); });
+  document.getElementById('freezeIcon').addEventListener('click', toggleFreeze);
+  document.getElementById('resumeBtn').addEventListener('click', togglePause);
+  document.getElementById('quitBtn').addEventListener('click', () => {
+    paused = false;
+    frozen = false;
+    pausePanel.classList.add('hidden');
+    endGame();
+    flushSave();
+  });
+  document.getElementById('pauseSettingsBtn').addEventListener('click', () => settingsPanel.classList.remove('hidden'));
+  document.getElementById('pauseShopBtn').addEventListener('click', () => { renderShop(); shopPanel.classList.remove('hidden'); });
+
+  // ---------------------------------------------------------------
+  // WEAPON BAR UI
+  // ---------------------------------------------------------------
+  function updateWeaponUI() {
+    weaponVal.textContent = currentWeaponDef().name;
+    weaponBar.innerHTML = '';
+    Object.keys(WEAPONS).forEach(key => {
+      const w = WEAPONS[key];
+      const owned = state.weaponsOwned[key];
+      const div = document.createElement('div');
+      div.className = 'weaponSlot' + (state.currentWeapon === key ? ' active' : '') + (!owned ? ' locked' : '');
+      div.textContent = w.icon;
+      div.title = w.name;
+      div.addEventListener('click', () => {
+        if (owned) { state.currentWeapon = key; updateWeaponUI(); }
+        else { renderShop(); shopPanel.classList.remove('hidden'); }
+      });
+      weaponBar.appendChild(div);
+    });
+  }
+
+  // ---------------------------------------------------------------
+  // SETTINGS PANEL LOGIC
+  // ---------------------------------------------------------------
+  const musicSlider = document.getElementById('musicSlider');
+  const sfxSlider = document.getElementById('sfxSlider');
+  const juiceSlider = document.getElementById('juiceSlider');
+  const headphonesToggle = document.getElementById('headphonesToggle');
+
+  function applySettingsToUI() {
+    musicSlider.value = state.settings.music;
+    sfxSlider.value = state.settings.sfx;
+    juiceSlider.value = state.settings.juice;
+    headphonesToggle.classList.toggle('on', state.settings.headphones);
+  }
+
+  musicSlider.addEventListener('input', () => { state.settings.music = +musicSlider.value; if (musicGain) musicGain.gain.value = state.settings.music / 100 * 0.25; markDirty(); });
+  sfxSlider.addEventListener('input', () => { state.settings.sfx = +sfxSlider.value; if (sfxGain) sfxGain.gain.value = state.settings.sfx / 100; markDirty(); });
+  juiceSlider.addEventListener('input', () => { state.settings.juice = +juiceSlider.value; if (juiceGain) juiceGain.gain.value = state.settings.juice / 100; markDirty(); });
+  headphonesToggle.addEventListener('click', () => { state.settings.headphones = !state.settings.headphones; headphonesToggle.classList.toggle('on', state.settings.headphones); markDirty(); });
+
+  document.getElementById('settingsIcon').addEventListener('click', () => settingsPanel.classList.remove('hidden'));
+  document.getElementById('closeSettings').addEventListener('click', () => settingsPanel.classList.add('hidden'));
+  document.getElementById('resetSaveBtn').addEventListener('click', async () => {
+    if (!confirm('Reset all progress? This cannot be undone.')) return;
+    state = { score: 0, bestScore: 0, weaponsOwned: { pistol: true, assault: false, sniper: false, rocket: false }, currentWeapon: 'pistol', settings: state.settings, shipsOwned: 0, shipWeapons: [], hideoutBases: 0, lemonSkinOwned: false, lemonSkinEquipped: false, skinsOwned: { lemon: true }, currentSkin: 'lemon', lemonOutfit: 'none', outfitsOwned: { none: true, default: true }, bossDefeated: false };
+    toastedUnlocks = { assault: false, sniper: false, rocket: false };
+    markDirty();
+    await flushSave();
+    scoreVal.textContent = formatScore(state.score);
+    updateWeaponUI();
+    layoutEscorts();
+    showToast('Save data reset.');
+  });
+
+  // ---------------------------------------------------------------
+  // SHOP PANEL LOGIC
+  // ---------------------------------------------------------------
+  const shopContent = document.getElementById('shopContent');
+  let currentShopTab = 'weapons';
+  document.querySelectorAll('.tabBtn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tabBtn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentShopTab = btn.dataset.tab;
+      renderShop();
+    });
+  });
+
+  const HIDEOUT_BASES = 4, SLOTS_PER_BASE = 8, MAX_SHIPS = HIDEOUT_BASES * SLOTS_PER_BASE;
+
+  function shopItemHTML(name, desc, price, buttonLabel, disabled, onClick, extraClass) {
+    const item = document.createElement('div');
+    item.className = 'shopItem';
+    item.innerHTML = `<div class="info"><div class="name">${name}</div><div class="desc">${desc}</div><div class="price">${price}</div></div>`;
+    const btn = document.createElement('button');
+    btn.className = 'shopBtn' + (extraClass ? ' ' + extraClass : '');
+    btn.textContent = buttonLabel;
+    btn.disabled = disabled;
+    btn.addEventListener('click', onClick);
+    item.appendChild(btn);
+    return item;
+  }
+
+  function renderKitPreview(canvasEl, themeKey) {
+    const pctx = canvasEl.getContext('2d');
+    const w = canvasEl.width, h = canvasEl.height;
+    pctx.clearRect(0, 0, w, h);
+    const size = 30;
+    pctx.save();
+    pctx.translate(w / 2, h / 2 + 6);
+    pctx.beginPath();
+    pctx.ellipse(0, 0, size * 0.55, size * 0.75, 0, 0, Math.PI * 2);
+    const grad = pctx.createRadialGradient(-size * 0.2, -size * 0.3, 2, 0, 0, size);
+    grad.addColorStop(0, '#fef9c3'); grad.addColorStop(0.6, '#fde047'); grad.addColorStop(1, '#eab308');
+    pctx.fillStyle = grad; pctx.fill();
+    pctx.strokeStyle = '#a16207'; pctx.lineWidth = 1; pctx.stroke();
+    pctx.fillStyle = '#78350f';
+    pctx.beginPath(); pctx.arc(-size * 0.18, -size * 0.05, size * 0.07, 0, Math.PI * 2); pctx.arc(size * 0.18, -size * 0.05, size * 0.07, 0, Math.PI * 2); pctx.fill();
+    drawOutfit(pctx, size, size * 0.55, size * 0.75, themeKey);
+    pctx.restore();
+  }
+
+  function renderClothingTab() {
+    shopContent.innerHTML = '';
+    const grid = document.createElement('div');
+    grid.className = 'kitGrid';
+    shopContent.appendChild(grid);
+    Object.keys(THEMES).forEach(key => {
+      const theme = THEMES[key];
+      const owned = !!state.outfitsOwned[key];
+      const equipped = state.lemonOutfit === key;
+      const card = document.createElement('div');
+      card.className = 'kitCard' + (equipped ? ' equipped' : '');
+      const canvasEl = document.createElement('canvas');
+      canvasEl.width = 72; canvasEl.height = 72;
+      card.appendChild(canvasEl);
+      const nameEl = document.createElement('div');
+      nameEl.className = 'kitName'; nameEl.textContent = theme.name;
+      card.appendChild(nameEl);
+      const priceEl = document.createElement('div');
+      priceEl.className = 'kitPrice'; priceEl.textContent = owned ? '' : formatScore(theme.price) + ' score';
+      card.appendChild(priceEl);
+      const btn = document.createElement('button');
+      btn.className = 'shopBtn' + (equipped ? ' equipped' : '');
+      btn.textContent = equipped ? 'Equipped' : (owned ? 'Equip' : 'Buy');
+      btn.disabled = equipped || (!owned && state.score < theme.price);
+      btn.addEventListener('click', () => {
+        if (!owned) {
+          if (state.score >= theme.price) {
+            addScore(-theme.price);
+            state.outfitsOwned[key] = true;
+            state.lemonOutfit = key;
+            markDirty();
+            showToast(theme.name + ' kit purchased & equipped!');
+            renderClothingTab();
+          }
+        } else {
+          state.lemonOutfit = key;
+          markDirty();
+          renderClothingTab();
+        }
+      });
+      card.appendChild(btn);
+      grid.appendChild(card);
+      renderKitPreview(canvasEl, key);
+    });
+  }
+
+  function renderSkinPreview(canvasEl, skinKey) {
+    const pctx = canvasEl.getContext('2d');
+    const w = canvasEl.width, h = canvasEl.height;
+    pctx.clearRect(0, 0, w, h);
+    const def = SKIN_DEFS[skinKey];
+    const size = 30;
+    const { rx, ry } = skinRadii(size, def.shape);
+    pctx.save();
+    pctx.translate(w / 2, h / 2 + 4);
+    pctx.beginPath();
+    if (def.shape === 'apple') {
+      pctx.moveTo(0, -ry * 0.85);
+      pctx.bezierCurveTo(rx * 0.9, -ry, rx, ry * 0.4, 0, ry);
+      pctx.bezierCurveTo(-rx, ry * 0.4, -rx * 0.9, -ry, 0, -ry * 0.85);
+    } else {
+      pctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    }
+    const grad = pctx.createRadialGradient(-rx * 0.3, -ry * 0.4, 2, 0, 0, Math.max(rx, ry));
+    grad.addColorStop(0, def.top); grad.addColorStop(0.6, def.mid); grad.addColorStop(1, def.bottom);
+    pctx.fillStyle = grad; pctx.fill();
+    pctx.strokeStyle = def.stroke; pctx.lineWidth = 1; pctx.stroke();
+    drawSkinTexture(pctx, size, def, rx, ry);
+    pctx.restore();
+  }
+
+  function renderShop() {
+    shopContent.innerHTML = '';
+    if (currentShopTab === 'weapons') {
+      Object.keys(WEAPONS).forEach(key => {
+        if (key === 'pistol') return;
+        const w = WEAPONS[key];
+        const owned = state.weaponsOwned[key];
+        const unlocked = state.bestScore >= w.unlockScore;
+        let label, disabled, cls;
+        if (owned) { label = state.currentWeapon === key ? 'Equipped' : 'Equip'; disabled = state.currentWeapon === key; cls = state.currentWeapon === key ? 'equipped' : ''; }
+        else if (!unlocked) { label = 'Locked (' + formatScore(w.unlockScore) + ' score)'; disabled = true; cls = 'locked'; }
+        else { label = 'Buy'; disabled = state.score < w.price; cls = ''; }
+        const desc = w.oneShot ? (w.splash > 0 ? 'One-shot kill + splash damage. Very fast fire rate.' : 'One-shot kill. Slower fire, long range.') : 'Faster fire rate than pistol.';
+        const el = shopItemHTML(w.icon + ' ' + w.name, desc + ' Score multiplier: x' + w.scoreMult, unlocked || owned ? ('Price: ' + formatScore(w.price) + ' score') : ('Unlocks at ' + formatScore(w.unlockScore) + ' score'), label, disabled, () => {
+          if (owned) { state.currentWeapon = key; updateWeaponUI(); renderShop(); }
+          else if (unlocked && state.score >= w.price) {
+            addScore(-w.price);
+            state.weaponsOwned[key] = true;
+            state.currentWeapon = key;
+            markDirty();
+            updateWeaponUI();
+            renderShop();
+            showToast(w.name + ' purchased!');
+          }
+        }, cls);
+        shopContent.appendChild(el);
+      });
+    } else if (currentShopTab === 'ships') {
+      const BASE_PRICES = [3000, 5000, 7000, 9000];
+      for (let i = 0; i < HIDEOUT_BASES; i++) {
+        const owned = state.hideoutBases > i;
+        const canBuy = state.hideoutBases === i;
+        const price = BASE_PRICES[i];
+        let label, disabled, cls;
+        if (owned) { label = 'Built'; disabled = true; cls = 'equipped'; }
+        else if (!canBuy) { label = 'Locked'; disabled = true; cls = 'locked'; }
+        else { label = 'Build'; disabled = state.score < price; cls = ''; }
+        const el = shopItemHTML('🏗️ Hideout Base ' + (i + 1), `Adds ${SLOTS_PER_BASE} spaceship slots.`, owned ? '' : ('Price: ' + formatScore(price) + ' score'), label, disabled, () => {
+          if (canBuy && state.score >= price) {
+            addScore(-price);
+            state.hideoutBases++;
+            markDirty();
+            renderShop();
+            showToast('Hideout Base ' + (i + 1) + ' built! +' + SLOTS_PER_BASE + ' ship slots.');
+          }
+        }, cls);
+        shopContent.appendChild(el);
+      }
+
+      const maxSlots = state.hideoutBases * SLOTS_PER_BASE;
+      const price = 1000;
+      const full = state.shipsOwned >= maxSlots;
+      const el = shopItemHTML('🛸 Extra Spaceship', `Auto-fires alongside you. Slots used: ${state.shipsOwned}/${maxSlots} (build hideout bases above for more capacity)`, 'Price: ' + formatScore(price) + ' score', full ? (maxSlots === 0 ? 'Build a base first' : 'Slots Full') : 'Buy Ship', full || state.score < price, () => {
+        if (state.shipsOwned < maxSlots && state.score >= price) {
+          addScore(-price);
+          state.shipsOwned++;
+          state.shipWeapons.push('pistol');
+          markDirty();
+          layoutEscorts();
+          renderShop();
+          showToast('New escort ship deployed!');
+        }
+      }, full ? 'locked' : '');
+      shopContent.appendChild(el);
+      if (state.shipsOwned > 0) {
+        const note = document.createElement('p');
+        note.style.fontSize = '12px';
+        note.style.color = '#94a3b8';
+        note.textContent = 'Tip: equip better weapons on your main ship first — escort ships currently use pistols. Custom loadouts per ship are coming soon.';
+        shopContent.appendChild(note);
+      }
+    } else if (currentShopTab === 'skins') {
+      const grid = document.createElement('div');
+      grid.className = 'kitGrid';
+      shopContent.appendChild(grid);
+      Object.keys(SKIN_DEFS).forEach(key => {
+        const def = SKIN_DEFS[key];
+        const owned = !!state.skinsOwned[key];
+        const equipped = state.currentSkin === key;
+        let label, disabled, cls, priceText;
+        if (def.type === 'free') {
+          label = equipped ? 'Equipped' : 'Equip'; disabled = equipped; cls = equipped ? 'equipped' : '';
+          priceText = 'Free';
+        } else if (def.type === 'shop') {
+          if (owned) { label = equipped ? 'Equipped' : 'Equip'; disabled = equipped; cls = equipped ? 'equipped' : ''; priceText = ''; }
+          else { label = 'Buy'; disabled = state.score < def.price; cls = ''; priceText = formatScore(def.price) + ' score'; }
+        } else {
+          if (owned) { label = equipped ? 'Equipped' : 'Equip'; disabled = equipped; cls = equipped ? 'equipped' : ''; priceText = ''; }
+          else { label = 'Locked'; disabled = true; cls = 'locked'; priceText = 'Shoot the rare fruit'; }
+        }
+        const card = document.createElement('div');
+        card.className = 'kitCard' + (equipped ? ' equipped' : '');
+        const canvasEl = document.createElement('canvas');
+        canvasEl.width = 72; canvasEl.height = 72;
+        card.appendChild(canvasEl);
+        const nameEl = document.createElement('div');
+        nameEl.className = 'kitName'; nameEl.textContent = def.label;
+        card.appendChild(nameEl);
+        const priceEl = document.createElement('div');
+        priceEl.className = 'kitPrice'; priceEl.textContent = priceText;
+        card.appendChild(priceEl);
+        const btn = document.createElement('button');
+        btn.className = 'shopBtn' + (cls ? ' ' + cls : '');
+        btn.textContent = label;
+        btn.disabled = disabled;
+        btn.addEventListener('click', () => {
+          if (def.type === 'free' || owned) { state.currentSkin = key; markDirty(); renderShop(); }
+          else if (def.type === 'shop' && state.score >= def.price) {
+            addScore(-def.price);
+            state.skinsOwned[key] = true;
+            state.currentSkin = key;
+            markDirty();
+            showToast(def.label + ' skin purchased & equipped!');
+            renderShop();
+          }
+        });
+        card.appendChild(btn);
+        grid.appendChild(card);
+        renderSkinPreview(canvasEl, key);
+      });
+    } else if (currentShopTab === 'clothing') {
+      renderClothingTab();
+    }
+  }
+
+  document.getElementById('shopIcon').addEventListener('click', () => { renderShop(); shopPanel.classList.remove('hidden'); });
+  document.getElementById('closeShop').addEventListener('click', () => shopPanel.classList.add('hidden'));
+
+  // ---------------------------------------------------------------
+  // INIT
+  // ---------------------------------------------------------------
+  resize();
+  initStars();
+  draw();
+  updateWeaponUI();
+  scoreVal.textContent = formatScore(state.score);
+  loadSave().then(() => {
+    scoreVal.textContent = formatScore(state.score);
+    updateWeaponUI();
+  });
+})();
+</script>
+
+</body>
+</html>
